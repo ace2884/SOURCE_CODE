@@ -97,8 +97,6 @@ def runSVM():
         messagebox.showerror('SVM error', str(e))
         return
     svm_time = (time.time() - start_time)
-    svm_acc = cal_accuracy(y_test, prediction_data,'SVM Accuracy')
-    svm_time = (time.time() - start_time)
 
 def runSVMGenetic():
     text.delete('1.0', END)
