@@ -12,6 +12,7 @@ from sklearn import svm
 from keras.models import Sequential
 from keras.layers import Dense
 import time
+import multiprocessing
 
 main = tkinter.Tk()
 main.title("PAD: Towards Principled Adversarial Malware Detection Against Evasion Attacks")
@@ -103,31 +104,62 @@ def runSVMGenetic():
     global svmga_acc
     global svmga_classifier
     global svmga_time
-    estimator = svm.SVC(C=2.0,gamma='scale',kernel = 'rbf', random_state = 2)
-    svmga_classifier = GeneticSelectionCV(estimator,
-                                  cv=5,
-                                  verbose=1,
-                                  scoring="accuracy",
-                                  max_features=5,
-                                  n_population=50,
-                                  crossover_proba=0.5,
-                                  mutation_proba=0.2,
-                                  n_generations=40,
-                                  crossover_independent_proba=0.5,
-                                  mutation_independent_proba=0.05,
-                                  tournament_size=3,
-                                  n_gen_no_change=10,
-                                  caching=True,
-                                  n_jobs=-1)
     if X_train is None:
         messagebox.showwarning('No model','Please generate model (train/test split) first')
         return
-    start_time = time.time()
+
     try:
-        svmga_classifier = svmga_classifier.fit(X_train, y_train)
+        n_features = X_train.shape[1]
+        # adaptive max_features: allow a reasonable fraction of features
+        max_features = min(50, max(5, n_features // 4))
+        # lighter genetic parameters to reduce runtime while remaining effective
+        n_population = 30
+        n_generations = 20
+
+        # subsample training set for faster feature selection when dataset large
+        subsample_frac = 0.5 if X_train.shape[0] > 1000 else 1.0
+        if subsample_frac < 1.0:
+            X_sub, _, y_sub, _ = train_test_split(X_train, y_train, test_size=(1 - subsample_frac), random_state=42)
+        else:
+            X_sub, y_sub = X_train, y_train
+
+        # CPU-aware n_jobs (leave one core free)
+        try:
+            cpu = multiprocessing.cpu_count()
+            n_jobs = max(1, cpu - 1)
+        except Exception:
+            n_jobs = 1
+
+        estimator = svm.SVC(C=2.0, gamma='scale', kernel='rbf', random_state=2)
+        text.insert(END, f"Starting genetic feature selection (features={n_features}, max_features={max_features}, population={n_population}, generations={n_generations}, sample_size={len(X_sub)})\n")
+        main.update()
+
+        svmga_classifier = GeneticSelectionCV(
+            estimator,
+            cv=5,
+            verbose=0,
+            scoring="accuracy",
+            max_features=max_features,
+            n_population=n_population,
+            crossover_proba=0.5,
+            mutation_proba=0.2,
+            n_generations=n_generations,
+            crossover_independent_proba=0.5,
+            mutation_independent_proba=0.05,
+            tournament_size=3,
+            n_gen_no_change=5,
+            caching=True,
+            n_jobs=n_jobs,
+        )
+
+        start_time = time.time()
+        svmga_classifier = svmga_classifier.fit(X_sub, y_sub)
         svmga_time = (time.time() - start_time)
+
+        # predict using the trained genetic-selection wrapped estimator
         prediction_data = prediction(X_test, svmga_classifier)
-        svmga_acc = cal_accuracy(y_test, prediction_data,'SVM with GA Algorithm Accuracy, Classification Report & Confusion Matrix')
+        svmga_acc = cal_accuracy(y_test, prediction_data, 'SVM with GA Algorithm Accuracy, Classification Report & Confusion Matrix')
+
     except Exception as e:
         messagebox.showerror('Genetic SVM error', str(e))
     
