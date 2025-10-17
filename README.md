@@ -1,4 +1,4 @@
-
+2
 # PAD - Principled Adversarial Malware Detection (UI)
 
 Short: create a Python environment, install dependencies, and run `Main.py`.
@@ -61,4 +61,4 @@ Troubleshooting
 - `mysqlclient` often requires build tools; use `conda install -c conda-forge mysqlclient` on Windows.
 - If Pylance shows unresolved imports after successful pip install, confirm VS Code uses the same interpreter and reload the window.
 
-If you paste the exact pip/conda error output here I will diagnose the failing package and provide an exact fix.
+
